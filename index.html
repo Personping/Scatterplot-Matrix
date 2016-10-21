@@ -43,11 +43,11 @@ var width = 960,
     size = 200,
     padding = 20;
 
-var x = d3.scale.linear()
-    .range([padding / 2, size - padding / 2]);
+var x = d3.scale.log()
+    .range([padding / 2, size - padding / 2]).nice();
 
-var y = d3.scale.linear()
-    .range([size - padding / 2, padding / 2]);
+var y = d3.scale.log()
+    .range([size - padding / 2, padding / 2]).nice();
 
 var xAxis = d3.svg.axis()
     .scale(x)
@@ -68,7 +68,7 @@ d3.csv("flowers.csv", function(error, data) {
       traits = d3.keys(data[0]).filter(function(d) { return d !== "Treatment"; }),
       n = traits.length;
   traits.forEach(function(trait) {
-    domainByTrait[trait] = d3.extent(data, function(d) { return parseInt(d[trait]); });
+    domainByTrait[trait] = d3.extent(data, function(d) { return parseFloat(d[trait]); });
 	});
 
   xAxis.tickSize(size * n);
@@ -92,8 +92,7 @@ d3.csv("flowers.csv", function(error, data) {
     .enter().append("g")
       .attr("class", "y axis")
       .attr("transform", function(d, i) { return "translate(0," + i * size + ")"; })
-      .each(function(d) { console.log(d3.max(d));
-	  y.domain(domainByTrait[d]); d3.select(this).call(yAxis); });
+      .each(function(d) { y.domain(domainByTrait[d]); d3.select(this).call(yAxis); });
 
   var cell = svg.selectAll(".cell")
       .data(cross(traits, traits))
