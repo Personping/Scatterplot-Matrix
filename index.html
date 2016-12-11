@@ -5,6 +5,12 @@
 svg {
   font: 10px sans-serif;
   padding: 10px;
+  -webkit-touch-callout: none;
+-webkit-user-select: none;
+-khtml-user-select: none;
+-moz-user-select: none;
+-ms-user-select: none;
+user-select: none;
 }
 
 .axis,
@@ -35,7 +41,10 @@ circle {
 }
 
 </style>
-<body>
+<body class="unselectable" unselectable="on" ondragstart="return false;" ondrop="return false;">
+	<div class = "buttonex" id="transButton">
+		<button>Toggle Transparency</button>
+    </div>
 <script src="//d3js.org/d3.v3.min.js"></script>
 <script>
 
@@ -46,9 +55,12 @@ var symbolTypes = {
 	"cross": d3.svg.symbol().type("cross")
 };
 
-var width = 960,
-    size = 200,
-    padding = 20;
+var scale = 1.0,
+	width = 960,
+    size = 200 * scale,
+    padding = 20 * scale,
+	viewHeight = window.innerHeight-100,
+	viewWidth = window.innerWidth-100;
 
 var x = d3.scale.log()
     .range([padding / 2, size - padding / 2]);
@@ -67,6 +79,19 @@ var yAxis = d3.svg.axis()
     .ticks(6);
 
 var color = d3.scale.category10();
+
+var iconOpacity = 0.5;
+
+var dragged = false;
+
+var offsetX = 0,
+	offsetY = 0,
+	previousOffsetX = 0,
+	previousOffsetY = 0,
+	previousMouseX = 0,
+	previousMouseY = 0;
+	
+var svg;
 
 d3.csv("part1.csv", function(error1, data1) {
   if (error1) throw error1;
@@ -89,10 +114,23 @@ d3.csv("part1.csv", function(error1, data1) {
 	  //console.log(domainByTrait); 
   xAxis.tickSize(size * n);
   yAxis.tickSize(-size * n);
-
-  var svg = d3.select("body").append("svg")
-      .attr("width", size * n + padding)
-      .attr("height", size * n + padding)
+  
+	var w = 300, h = 10;
+	var myExample = d3.select("#transButton")
+	  .append("svg:svg")
+	  .attr("width", w)
+	  .attr("height", h)
+	d3.select("#transButton button").on("click", function() {
+		iconOpacity = Math.abs(iconOpacity-1.5);
+		svg.selectAll("path").style("opacity", iconOpacity);
+	});
+  svg = d3.select("body").append("svg")
+      .attr("width", viewWidth)
+      .attr("height", viewHeight)
+	  .on("mousedown", mouseDown)
+	  .on("mouseover", hover)
+	  .on("mouseleave", exit)
+	  .on("mouseup", mouseUp)
     .append("g")
       .attr("transform", "translate(" + padding + "," + padding / 2 + ")");
 
@@ -124,10 +162,9 @@ d3.csv("part1.csv", function(error1, data1) {
       .attr("y", padding)
       .attr("dy", ".71em")
       .text(function(d) { return d.x; });
-
   function plot(p) {
 	var cell = d3.select(this);
-
+	
     x.domain(domainByTrait[p.x]);
     y.domain(domainByTrait[p.y]);
 
@@ -144,10 +181,10 @@ d3.csv("part1.csv", function(error1, data1) {
 	else
 		data = data2;
 		
-	cell.selectAll("path")
+	cell.selectAll(".points")
         .data(data)
       .enter().append("path")
-		.attr("class", "dot")
+		.attr("class", "point")
 		.attr("transform", function(d) { return "translate(" + x(d[p.x]) + "," + y(d[p.y]) + ")"; })
         .attr("d", function(d,i){ 
 			if(d.Tissue_Type=="Lymph")
@@ -155,7 +192,9 @@ d3.csv("part1.csv", function(error1, data1) {
 			else
 				return symbolTypes.circle();
 		})
+		.style("opacity", iconOpacity)
 		.style("fill", function(d) { return color(d.Treatment); });
+		
 		
 	//console.log(data2);
 	/*
@@ -175,10 +214,36 @@ d3.csv("part1.csv", function(error1, data1) {
 
 });
 
+function exit(d, i){
+	dragged = false;
+}
+
+function hover(d, i){
+	if(dragged){
+		//Change transform value of group contained in svg
+		svg.attr("transform", "translate(" + (previousOffsetX - previousMouseX + d3.event.x) + "," + (previousOffsetY - previousMouseY + d3.event.y) + ")");
+	}
+}
+
+function mouseDown(d, i) {
+	previousMouseX = d3.event.x;
+	previousMouseY = d3.event.y;
+	previousOffsetX = offsetX;
+	previousOffsetY = offsetY;
+	dragged = true;
+	
+}
+function mouseUp(d, i){
+	dragged = false;
+	offsetX = previousOffsetX - previousMouseX + d3.event.x;
+	offsetY = previousOffsetY - previousMouseY + d3.event.y;
+}
+
 function cross(a, b) {
   var c = [], n = a.length, m = b.length, i, j;
   for (i = -1; ++i < n;) for (j = -1; ++j < m;) c.push({x: a[i], i: i, y: b[j], j: j});
   return c;
 }
+
 
 </script>
