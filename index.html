@@ -43,23 +43,16 @@ circle {
 </style>
 <body class="unselectable" unselectable="on" ondragstart="return false;" ondrop="return false;">
 	<div class = "buttonex" id="transButton">
-		<button>Toggle Transparency</button>
+		<button id="chicken">Toggle Transparency</button><span id="legend_display"></span>
     </div>
 <script src="//d3js.org/d3.v3.min.js"></script>
 <script>
 
-// symbol generators
-var symbolTypes = {
-    "triangleDown": d3.svg.symbol().type("triangle-down"),
-    "circle": d3.svg.symbol().type("circle"),
-	"cross": d3.svg.symbol().type("cross")
-};
-
-var scale = 1.0,
+var scale = 1,
 	width = 960,
     size = 200 * scale,
     padding = 20 * scale,
-	viewHeight = window.innerHeight-100,
+	viewHeight = window.innerHeight-150,
 	viewWidth = window.innerWidth-100;
 
 var x = d3.scale.log()
@@ -90,8 +83,12 @@ var offsetX = 0,
 	previousOffsetY = 0,
 	previousMouseX = 0,
 	previousMouseY = 0;
-	
+var n;
 var svg;
+var legend;
+var legendData=[];
+var debug;
+var legendDisplay;
 
 d3.csv("part1.csv", function(error1, data1) {
   if (error1) throw error1;
@@ -102,8 +99,10 @@ d3.csv("part1.csv", function(error1, data1) {
   var domainByTrait = {},
       traits = d3.keys(data1[0]).filter(function(d) { return d !== "Treatment" && d!== "Tissue_Type"; }), 
       n = traits.length;
+	createLegend(data1);
+	debug=data1;
   traits.forEach(function(trait) {
-	var domainByTrait1 = {},domainByTrait2 = {};
+	domainByTrait1 = {},domainByTrait2 = {};
 	domainByTrait1[trait] = d3.extent(data1, function(d) { return parseFloat(d[trait]); });
 	domainByTrait2[trait] = d3.extent(data2, function(d) { return parseFloat(d[trait]); });
 	domainByTrait[trait] = [];
@@ -112,27 +111,55 @@ d3.csv("part1.csv", function(error1, data1) {
 	});
 
 	  //console.log(domainByTrait); 
-  xAxis.tickSize(size * n);
-  yAxis.tickSize(-size * n);
+	xAxis.tickSize(size * n);
+	yAxis.tickSize(-size * n);
   
-	var w = 300, h = 10;
-	var myExample = d3.select("#transButton")
-	  .append("svg:svg")
-	  .attr("width", w)
-	  .attr("height", h)
+	legend = d3.select("#transButton")
+	  .append("svg")
+	  .attr("width", viewWidth)
+	  .attr("height", 10)
+	  .attr("preserveAspectRatio","none")
+	  .attr("margin","none")
+	  .attr("preserveAspectRatio","none");;
+	
+	legendDisplay=d3.select("#transButton")
+		.append("p")
+		.attr("id","legend_display");
+	
 	d3.select("#transButton button").on("click", function() {
 		iconOpacity = Math.abs(iconOpacity-1.5);
-		svg.selectAll("path").style("opacity", iconOpacity);
+		svg.selectAll("path").attr("opacity", iconOpacity);
 	});
-  svg = d3.select("body").append("svg")
-      .attr("width", viewWidth)
-      .attr("height", viewHeight)
-	  .on("mousedown", mouseDown)
-	  .on("mouseover", hover)
-	  .on("mouseleave", exit)
-	  .on("mouseup", mouseUp)
+	legend.selectAll("legend_label")
+		.data(legendData)
+	.enter().append("path")
+		.attr("class", "legend_label")
+		.attr("transform", function(d,i){ return "translate(" + (10 + 20 * i) + ",5)"})
+		.attr("d", getLegendSymbol)
+		.attr("opacity", 1.0)
+		.style("fill", function(d) { return color(d.Treatment); })
+		.on("mouseover",function(d){ d3.select("#legend_display").text("\tTreatment: "+d.Treatment+", Tissue_Type:"+d.Tissue_Type);})
+		.on("mouseout",function(d){ d3.select("#legend_display").text("");})
+		.on("click", function(d) {
+			var temprgb=d3.rgb(d3.select(this).style("fill"));
+			if(temprgb.r==0&&temprgb.g==0&&temprgb.b==0){
+				d3.select(this).transition().duration(1000).style("fill",color(d.Treatment));
+				svg.selectAll("."+d.Tissue_Type+"-"+d.Treatment).transition().duration(1000)
+					.attr("opacity", iconOpacity);
+			}else{
+				d3.select(this).transition().duration(1000).style("fill","black");
+				//Set ALL paths with that color to opacity 0!
+				svg.selectAll("."+d.Tissue_Type+"-"+d.Treatment).transition().duration(1000)
+					.attr("opacity", 0.0);
+			}
+		});
+	
+	svg = d3.select("body").append("svg")
+		.attr("width", viewWidth)
+		.attr("height", viewHeight)
+		.call(d3.behavior.zoom().scaleExtent([.2, 12]).on("zoom", zoom))
     .append("g")
-      .attr("transform", "translate(" + padding + "," + padding / 2 + ")");
+		.attr("transform", "translate(" + padding + "," + padding / 2 + ")");
 
   svg.selectAll(".x.axis")
       .data(traits)
@@ -153,6 +180,7 @@ d3.csv("part1.csv", function(error1, data1) {
       .data(cross(traits, traits))
     .enter().append("g")
       .attr("class", "cell")
+	  .attr("id", function(d){ return "cell"+d.i+"-"+d.j})
       .attr("transform", function(d) { return "translate(" + (n - d.i - 1) * size + "," + d.j * size + ")"; })
       .each(plot);
 
@@ -170,10 +198,11 @@ d3.csv("part1.csv", function(error1, data1) {
 
     cell.append("rect")
         .attr("class", "frame")
-        .attr("x", padding / 2)
-        .attr("y", padding / 2)
-        .attr("width", size - padding)
-        .attr("height", size - padding);
+        .attr("x", padding / 2 -5)
+        .attr("y", padding / 2 -5)
+        .attr("width", size - padding + 5)
+        .attr("height", size - padding + 5)
+		.attr("stroke-width", 5);
 
 	var data;
 	if (p.i>=p.j)
@@ -184,59 +213,58 @@ d3.csv("part1.csv", function(error1, data1) {
 	cell.selectAll(".points")
         .data(data)
       .enter().append("path")
-		.attr("class", "point")
-		.attr("transform", function(d) { return "translate(" + x(d[p.x]) + "," + y(d[p.y]) + ")"; })
-        .attr("d", function(d,i){ 
-			if(d.Tissue_Type=="Lymph")
-				return symbolTypes.cross(); 
-			else
-				return symbolTypes.circle();
-		})
-		.style("opacity", iconOpacity)
-		.style("fill", function(d) { return color(d.Treatment); });
-		
-		
-	//console.log(data2);
-	/*
-    cell.selectAll("circle")
-        .data(data)
-      .enter().append("circle")
-        .attr("cx", function(d) { return x(d[p.x]); })
-        .attr("cy", function(d) { return y(d[p.y]); })
-        .attr("r", 4)
-        .style("fill", function(d) { return color(d.Treatment); });
-		*/
+		.attr("class", function(d) { return ""+d.Tissue_Type+"-"+d.Treatment; })
+		.attr("transform", function(d) { return "translate(" + x(d[p.x]) + "," + y(d[p.y]) + ") scale("+scale+")"; })
+        .attr("d", getSymbol)
+		.attr("opacity", iconOpacity)
+		.style("fill", function(d) { return color(d.Treatment); })
+		.on("mouseover",function(d){ d3.select("#legend_display").text("\tTreatment: "+d.Treatment+", Tissue_Type:"+d.Tissue_Type+", "+p.x+": "+d[p.x]+", "+p.y+": "+d[p.y]);})
+		.on("mouseout",function(d){ d3.select("#legend_display").text("");});
 		
   }
-	
 	});
-
-
 });
 
-function exit(d, i){
-	dragged = false;
+function getLegendSymbol(d, i){
+	if(d.Tissue_Type=="Lymph")
+		return d3.svg.symbol().size(200/scale).type("cross")(); 
+	else
+		return d3.svg.symbol().size(200/scale).type("circle")();
 }
 
-function hover(d, i){
-	if(dragged){
-		//Change transform value of group contained in svg
-		svg.attr("transform", "translate(" + (previousOffsetX - previousMouseX + d3.event.x) + "," + (previousOffsetY - previousMouseY + d3.event.y) + ")");
-	}
+function getSymbol(d, i){ 
+	if(d.Tissue_Type=="Lymph")
+		return d3.svg.symbol().size(30/scale).type("cross")(); 
+	else
+		return d3.svg.symbol().size(30/scale).type("circle")();
 }
 
-function mouseDown(d, i) {
-	previousMouseX = d3.event.x;
-	previousMouseY = d3.event.y;
-	previousOffsetX = offsetX;
-	previousOffsetY = offsetY;
-	dragged = true;
-	
+function zoom() {
+  svg.attr("transform", "translate(" + d3.event.translate + ")scale(" + d3.event.scale + ")");
+  //console.log(d3.event.scale);
+  //if(scale==d3.event.scale)
+	//return;
+  scale=d3.event.scale;
+  //Figure "radius" of cells
+  //Cell size is influenced by scale
+  //TODO localized zoom for performance
+  //console.log(viewWidth);
+  //console.log((size+padding)*d3.event.scale);
+  var across = Math.ceil((viewWidth/((size+padding)*d3.event.scale)/2));
+  var down = Math.ceil((viewHeight/((size+padding)*d3.event.scale)/2));
+  //console.log(""+across+","+down);
+  //svg.select("#cell0-0").selectAll("path")
+	//.attr("d", getSymbol);
 }
-function mouseUp(d, i){
-	dragged = false;
-	offsetX = previousOffsetX - previousMouseX + d3.event.x;
-	offsetY = previousOffsetY - previousMouseY + d3.event.y;
+
+function createLegend(data){
+	data.forEach(function(element){
+		if(!contains(legendData,""+element.Tissue_Type+","+element.Treatment))
+			legendData.push(""+element.Tissue_Type+","+element.Treatment);
+	});
+	legendData.forEach(function(value,i){
+		legendData[i]={"Tissue_Type":value.split(",")[0],"Treatment":value.split(",")[1]}
+	});
 }
 
 function cross(a, b) {
@@ -245,5 +273,13 @@ function cross(a, b) {
   return c;
 }
 
+function contains(a, obj) {
+    for (var i = 0; i < a.length; i++) {
+        if (a[i] === obj) {
+            return true;
+        }
+    }
+    return false;
+}
 
 </script>
